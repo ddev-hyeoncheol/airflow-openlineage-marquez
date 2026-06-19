@@ -3,7 +3,7 @@ from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.standard.operators.python import PythonOperator
 
-# PostgreSQL connection configurations
+# PostgreSQL Connection Settings
 JDBC_URL = "jdbc:postgresql://postgres:5432/airflow"
 DB_PROPERTIES = {
     "user": "airflow",
@@ -20,7 +20,7 @@ def run_pyspark_ingestion(file_name: str, target_table: str):
 
     print(f"Starting Spark session to ingest {file_name} into {target_table}...")
 
-    # Spark Session 빌드 (드라이버는 환경 변수 PYSPARK_SUBMIT_ARGS로 자동 로드됨)
+    # Build Spark Session (JDBC driver loaded via PYSPARK_SUBMIT_ARGS)
     spark = (
         SparkSession.builder.appName(f"Ingest_{target_table}")
         .master("local[*]")
@@ -31,7 +31,7 @@ def run_pyspark_ingestion(file_name: str, target_table: str):
         source_path = f"/opt/airflow/data/{file_name}"
         print(f"Reading source CSV file: {source_path}")
 
-        # CSV 파일 로드
+        # Load CSV source
         df = (
             spark.read.option("header", "true")
             .option("inferSchema", "true")
@@ -41,7 +41,7 @@ def run_pyspark_ingestion(file_name: str, target_table: str):
         df.show(5)
         print(f"Writing to database table: {target_table}")
 
-        # Postgres staging 스키마에 적재 (Overwrite)
+        # Write to Postgres staging tables (Overwrite)
         df.write.mode("overwrite").jdbc(
             url=JDBC_URL, table=target_table, properties=DB_PROPERTIES
         )
@@ -53,7 +53,7 @@ def run_pyspark_ingestion(file_name: str, target_table: str):
         print("Spark session stopped.")
 
 
-# DAG definition
+# DAG Definition
 with DAG(
     dag_id="data_pipeline",
     start_date=datetime(2026, 1, 1),
@@ -84,19 +84,19 @@ with DAG(
         },
     )
 
-    # dbt DW Model (Table Materialization)
+    # Run dbt DW models
     customer_orders = BashOperator(
         task_id="customer_orders",
-        bash_command="dbt run --project-dir /opt/airflow/dbt --profiles-dir /opt/airflow/dbt --select customer_orders",
+        bash_command="dbt-ol run --project-dir /opt/airflow/dbt --profiles-dir /opt/airflow/dbt --select customer_orders",
     )
 
-    # dbt DM Model (Table Materialization)
+    # Run dbt DM models
     daily_sales_summary = BashOperator(
         task_id="daily_sales_summary",
-        bash_command="dbt run --project-dir /opt/airflow/dbt --profiles-dir /opt/airflow/dbt --select daily_sales_summary",
+        bash_command="dbt-ol run --project-dir /opt/airflow/dbt --profiles-dir /opt/airflow/dbt --select daily_sales_summary",
     )
 
-    # Task dependencies: Ingestion -> DW -> DM
+    # Define pipeline dependencies (Ingest -> DW -> DM)
     _ = (
         [ingest_customers, ingest_orders, ingest_order_items]
         >> customer_orders

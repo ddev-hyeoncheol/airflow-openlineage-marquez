@@ -8,7 +8,8 @@
 - Java 17 및 PySpark가 내장된 커스텀 에어플로우 이미지 빌드 환경 구성 완료 (Debian 12 패키지 호환 고려)
 - Postgres 단일 인스턴스 내 스키마 분리(staging, dw, dm) 및 가짜 데이터(CSV) 구성 완료
 - Spark JDBC 드라이버(42.7.11)의 이미지 빌드 타임 다운로드 내장 및 docker-compose 환경변수(PYSPARK_SUBMIT_ARGS)를 통한 로딩 구성 완료
-- 다음 작업 포커스: dbt 프로젝트 초기화(dbt init) 및 PySpark Ingestion DAG 실행 검증 완료 후 dbt 태스크 연동
+- dbt 프로젝트 생성 및 `staging -> dw -> dm` 순차 변환 흐름 구성 완료
+- 다음 작업 포커스: Marquez가 제거되었으므로, Column-level Lineage(CLL) 시각화를 지원하는 새로운 백엔드(예: DataHub) 도입 방안 논의 및 환경 구성
 
 ## Temporary Notes
 
@@ -17,3 +18,5 @@
 - `docker-compose-airflow.yml` 내의 UID 설정은 `50000:0`을 기본값으로 사용하되 필요시 환경변수 `AIRFLOW_UID`로 제어함.
 - Postgres DB는 Named Volume 마운트를 제거하여 완전 휘발성(Transient)으로 구동되며, 기동 시 `postgres/init.sql`이 마운트되어 스키마가 항상 새로 자동 개설됨.
 - PySpark의 JDBC 드라이버 로드 시 발생하는 외부 네트워크 지연 및 다운로드 실패 문제를 차단하기 위해, 드라이버 Jar를 Dockerfile 내장 방식으로 이관하고 파이썬 코드 내의 명시적 config 호출을 제거함.
+- `data_pipeline` DAG의 의존성을 `[ingest_customers, ingest_orders, ingest_order_items] >> customer_orders >> daily_sales_summary` 로 일자형 연계하여 `staging -> dw -> dm`의 정방향 계보 수집이 보장되도록 설정함.
+- 기존 `product_sales_summary.sql` 모델은 dbt 프로젝트 내에 보존되어 있으나, Airflow `data_pipeline` 에서는 `daily_sales_summary`로 완전히 대체되어 제외됨.
